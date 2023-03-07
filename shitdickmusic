@@ -1,0 +1,94 @@
+const Discord = require('discord.js');
+const ytdl = require('ytdl-core');
+const bot = new Discord.Client();
+
+const token = 'MTA4MjQzMDQ0NDkxOTg2OTUzMA.GEZF1m.9HtyKpoonKfiSeI5aET6nd8XBgycphivp8twgs';
+const PREFIX = '!';
+
+bot.on('ready', () => {
+  console.log('Bot is online!');
+});
+
+bot.on('message', async message => {
+  if (message.author.bot) return;
+  if (!message.content.startsWith(PREFIX)) return;
+  
+  const args = message.content.slice(PREFIX.length).trim().split(/ +/g);
+  const command = args.shift().toLowerCase();
+
+  if (command === 'play') {
+    const voiceChannel = message.member.voice.channel;
+    if (!voiceChannel) return message.channel.send('You STUPID ASS! You need to be in a voice channel to play music!');
+    
+    const searchQuery = args.join(' ');
+    const videoURL = await searchVideo(searchQuery);
+    if (!videoURL) return message.channel.send(`No results found for "${searchQuery}"`);
+    
+    const songInfo = await ytdl.getInfo(videoURL);
+    const song = {
+      title: songInfo.title,
+      url: songInfo.video_url
+    };
+    
+    if (!queue.length) {
+      queue.push(song);
+      try {
+        const connection = await voiceChannel.join();
+        play(connection, message);
+        message.channel.send(`Playing: **${song.title}**`);
+      } catch (error) {
+        console.error(error);
+      }
+    } else {
+      queue.push(song);
+      message.channel.send(`Added **${song.title}** to queue!`);
+    }
+  } else if (command === 'skip') {
+    const voiceChannel = message.member.voice.channel;
+    if (!voiceChannel) return message.channel.send('Hey Shitdick, you need to be in a voice channel to skip the song!');
+    if (!queue.length) return message.channel.send('There are no songs to skip shitdick!'');
+    
+    dispatcher.end();
+  } else if (command === 'stop') {
+    const voiceChannel = message.member.voice.channel;
+    if (!voiceChannel) return message.channel.send('Hey Shitdick, You need to be in a voice channel to stop the music!');
+    if (!queue.length) return message.channel.send('Dumbass, there are no songs in the queue to stop!');
+    
+    queue.length = 0;
+    dispatcher.end();
+  }
+});
+
+const queue = [];
+const play = (connection, message) => {
+  const song = queue[0];
+  const stream = ytdl(song.url, { filter: 'audioonly' });
+  dispatcher = connection.play(stream);
+  
+  dispatcher.on('finish', () => {
+    queue.shift();
+    if (queue.length) {
+      play(connection, message);
+      message.channel.send(`Playing: **${queue[0].title}**`);
+    } else {
+      connection.disconnect();
+      message.channel.send('No more songs in queue, disconnecting from voice channel.');
+    }
+  });
+};
+
+const searchVideo = async (searchQuery) => {
+  const videoFinder = async (query) => {
+    const videoResult = await ytdl.search(query);
+    return videoResult.videos.length > 1 ? videoResult.videos[0] : null;
+  };
+  
+  const video = await videoFinder(searchQuery);
+  if (video) {
+    return `https://www.youtube.com/watch?v=${video.id}`;
+  } else {
+    return null;
+  }
+};
+
+bot.login(token);
